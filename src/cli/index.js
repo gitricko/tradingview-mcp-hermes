@@ -30,6 +30,7 @@ import './commands/repl.js';
 import './commands/strategy.js';
 import './commands/news.js';
 import './commands/screener.js';
+import './commands/morning.js';
 
 // Run
 import { run } from './router.js';
