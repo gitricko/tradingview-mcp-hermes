@@ -15,7 +15,7 @@ const PROJECT_ROOT = resolve(__dirname, "../../");
 const SESSIONS_DIR = join(homedir(), ".tradingview-mcp", "sessions");
 const USER_DATA_DIR = resolve(join(homedir(), ".tradingview-mcp"));
 
-function assertSafeRulesPath(p) {
+export function assertSafeRulesPath(p) {
   const resolved = resolve(p);
   const inProject =
     resolved === resolve(join(PROJECT_ROOT, "rules.json")) ||
@@ -28,7 +28,7 @@ function assertSafeRulesPath(p) {
   }
 }
 
-function assertSafeDate(dateStr) {
+export function assertSafeDate(dateStr) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     throw new Error(
       `Invalid date: ${dateStr}. Use YYYY-MM-DD (e.g. 2026-05-11).`,
@@ -36,7 +36,7 @@ function assertSafeDate(dateStr) {
   }
 }
 
-function loadRules(rulesPath) {
+export function loadRules(rulesPath) {
   if (rulesPath) assertSafeRulesPath(rulesPath);
 
   const candidates = [

@@ -2,10 +2,13 @@ import { createHmac } from "crypto";
 import https from "https";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 
-// Load .env
-readFileSync(new URL(".env", import.meta.url), "utf8")
-  .split("\n")
-  .forEach((line) => {
+// Load .env (optional — may not exist on fresh clones)
+let envLines = [];
+const envUrl = new URL(".env", import.meta.url);
+if (existsSync(envUrl)) {
+  try { envLines = readFileSync(envUrl, "utf8").split("\n"); } catch {}
+}
+envLines.forEach((line) => {
     const [k, ...v] = line.split("=");
     if (k && !k.startsWith("#") && v.length)
       process.env[k.trim()] = v.join("=").trim();
@@ -171,10 +174,20 @@ async function getOrderFill(orderId) {
   return 0;
 }
 
+// BitGet lock error pattern: extracts available tradeable qty from error messages
+// like "0.001234XRP can be used at most"
+const LOCK_ERROR_RE = /([\d.]+)XRP can be used at most/i;
+
+export function parseLockError(msg) {
+  if (typeof msg !== 'string') return null;
+  const m = msg.match(LOCK_ERROR_RE);
+  return m ? parseFloat(m[1]) : null;
+}
+
 // BitGet locks newly purchased assets against immediate resale (anti-wash-trading).
 // This retries the sell, parsing the actually-available amount from the error
 // message until the lock lifts or we time out.
-async function placeSellWithRetry(qty, maxRetries = 12, retryDelayMs = 3000) {
+export async function placeSellWithRetry(qty, maxRetries = 12, retryDelayMs = 3000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     const size = (Math.floor(qty * 10000) / 10000).toFixed(4);
     const res = await placeOrder("sell", size);
@@ -182,10 +195,9 @@ async function placeSellWithRetry(qty, maxRetries = 12, retryDelayMs = 3000) {
     if (res.code === "00000")
       return { ok: true, res, soldQty: parseFloat(size) };
 
-    // Parse available qty from lock error: "0.001234XRP can be used at most"
-    const lockMatch = res.msg?.match(/([\d.]+)XRP can be used at most/i);
-    if (lockMatch) {
-      const available = parseFloat(lockMatch[1]);
+    // Parse available qty from lock error
+    const available = parseLockError(res.msg);
+    if (available !== null) {
       console.log(
         `  🔒 Lock active — only ${available} XRP tradeable. Retry ${attempt}/${maxRetries} in ${retryDelayMs / 1000}s...`,
       );
@@ -335,7 +347,15 @@ async function main() {
   );
 }
 
-main().catch((err) => {
-  console.error("Fatal:", err.message);
-  process.exit(1);
-});
+// Only auto-run when executed directly (not when imported for testing)
+const isMainModule = process.argv[1] && (
+  process.argv[1] === import.meta.filename ||
+  process.argv[1].endsWith('/scalper-run.js')
+);
+
+if (isMainModule) {
+  main().catch((err) => {
+    console.error("Fatal:", err.message);
+    process.exit(1);
+  });
+}
