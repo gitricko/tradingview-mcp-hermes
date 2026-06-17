@@ -196,3 +196,31 @@ describe('CLI — pine check (server compile)', () => {
     assert.ok(result.error_count > 0);
   });
 });
+
+describe('CLI — morning brief (integration)', () => {
+  it('brief --help shows options', () => {
+    const { stdout, exitCode } = run(['brief', '--help']);
+    assert.equal(exitCode, 0);
+    assert.ok(stdout.includes('rules'));
+  });
+
+  it('brief -h shows options (short flag)', () => {
+    const { stdout, exitCode } = run(['brief', '-h']);
+    assert.equal(exitCode, 0);
+    assert.ok(stdout.includes('rules'));
+  });
+
+  it('session --help shows get and save subcommands', () => {
+    const { stdout, exitCode } = run(['session', '--help']);
+    assert.equal(exitCode, 0);
+    assert.ok(stdout.includes('get'));
+    assert.ok(stdout.includes('save'));
+  });
+
+  it('session -h shows subcommands (short flag)', () => {
+    const { stdout, exitCode } = run(['session', '-h']);
+    assert.equal(exitCode, 0);
+    assert.ok(stdout.includes('get'));
+    assert.ok(stdout.includes('save'));
+  });
+});

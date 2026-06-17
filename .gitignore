@@ -6,3 +6,11 @@ temp_*
 discovery-log.json
 .claude/
 .plan/
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Install-time symlink created by one-shot setup
+AGENTS.md
