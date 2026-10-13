@@ -27,6 +27,27 @@ PRs from `tradesdontlie/tradingview-mcp` that have been reviewed and applied to 
 | #96 | fix(data): DOM-scrape fallback for strategy results + trades | — | **DEFERRED** — conflicts with PR #90 in data.js |
 | #97 | fix(pine): resilient Pine Editor detection during state transitions | 2026-04-25 | Phase A.8 |
 | #102 | CI and agent guardrails | 2026-04-25 | Phase N.40 partial — CI workflow ported (commit c395533); agent-guardrail bits not applicable |
+| #536 | fix(drawing): accept color/linewidth/linestyle on draw_shape, report what landed | 2026-09-20 | Ported: first-class style params + landed/mismatch report, readback never fails draw |
+| #522 | fix(pine): detect icon-only add/update-to-chart button | 2026-09-20 | Remainder ported: compile() data-qa-id fast path (title-attr base was Phase A.2) |
+| #532 | Fix replay_stop leaving the chart in the past; make the test suite pass on Windows | 2026-09-20 | Fully ported: scripts (stream redirect, Start-Process); replay core exits without stopReplay() (leaveReplay() preferred on 3.4.1, goToRealtime() fallback) + live-bar readiness poll; e2e teardown via core stop. Live-verified on TV 3.4.1 |
+| #528 | fix(tools): stop reading the string "false" as true | 2026-09-20 | Verified present (boolish superset in src/tools/_validation.js) — no change |
+| #524 | Fix Windows path bug in source-audit test, apply npm audit fixes | 2026-09-20 | Verified present (fileURLToPath); remaining audit finding (brace-expansion DoS) fixed via `npm audit fix` → 0 vulns |
+| #533 | Point the install docs at the real Claude Code config paths | 2026-09-20 | Verified present (README + SETUP_GUIDE) — no change |
+| #534 | Stop the update check flagging branches ahead of upstream | 2026-09-20 | N/A — fork has no update-check surface |
+| #530 | Fix tv_launch on MSIX installs: sync EPERM + sandbox | 2026-09-20 | **DEFERRED** — hunk assumes absent launch structure; needs live-Windows verification |
+| #526 | Add indicator_get_style / indicator_set_style | 2026-09-20 | **DEFERRED** — new 2-tool surface (455 additions), needs design + live-TV pass |
+| #523 | Add local trade journal and XAUUSD skill | 2026-09-20 | **SKIPPED** — personal-feature PR, out of scope |
+
+## Fork-mined, no upstream PR (tradesdontlie forks audit 2026-09-20)
+
+| Fork | Item | Applied | Notes |
+|------|------|---------|-------|
+| eltx88 | secrets/OS `.gitignore` entries | 2026-09-20 | Commit 762ea18 |
+| lakshman1005 + 0xdungbui | CLI stdout truncation on `process.exit()` (65KB pipe cutoff) | 2026-09-20 | NOT REPRODUCIBLE locally — our result path already drains; unified the 6 help/error exits to exitCode+return for the same libuv-safe rationale (no live truncation bug found) |
+| mustafagurbuzai | Drawing: N-point shapes, move/set/visible, two-point position, real shape list | 2026-09-20 | ADOPTED (cherry-picked onto #536 core; H10 DI-removal rejected). Live-verified 3.4.1 |
+| lakshman1005 | Alert name/webhook/email/frequency/expiry/deactivate + list surfacing | 2026-09-20 | ADOPTED opt-in with defaults preserved + SSRF guard; directional + resolution already shipped; never-expiry default DEFERRED. Live-verified 3.4.1 |
+| basghari | Bounded capture, occlusion recovery, axes clips, bars alias | 2026-09-20 | ADOPTED (macOS-gated, no-write-on-timeout). Live-verified 3.4.1 |
+| 0xdungbui | draw_list price/title, watchlist anchor, scroll read-back, postcondition tests | 2026-09-20 | ADOPTED (40-char drop DEFERRED as too lossy; title objects unwrapped). Live-verified 3.4.1 |
 
 ## Untouched / not-applicable upstream PRs
 

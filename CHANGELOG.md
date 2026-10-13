@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-20
+
+### Added
+
+- Fork-adopted drawing tools: N-point shapes, `draw_move`,
+  `draw_set_properties`, `draw_set_visible`, merged two-point position
+  boxes, `draw_list` price/title enrichment (mustafagurbuzai,
+  0xdungbui; #536 style layer preserved).
+- Fork-adopted alert options: `name`, opt-in `webhook` (SSRF-guarded),
+  `email`, `frequency`, `expiration`, `auto_deactivate`, plus full
+  channel surfacing in `alert_list` (lakshman1005; defaults unchanged).
+- Fork-adopted hardening: locale-independent watchlist anchor,
+  `scrollToDate` visible-range read-back, bounded screenshots with
+  occlusion recovery, axes-in-region chart clips, `bars` alias for
+  OHLCV count (basghari, 0xdungbui).
+
+## [1.3.0] - 2026-09-20
+
+### Security
+
+- Dependabot `hono` 4.13.0 → 4.13.7 (upstream XSS fix, transitive via MCP
+  SDK; stdio transport never loads the affected path) and `js-yaml`
+  4.3.1 → 4.3.2 (merge-DoS backport, dev-only via eslint chain).
+  Lockfile-only, CI green pre-merge.
+
+### Added
+- `draw_shape` style parameters (`color`/`linewidth`/`linestyle`, plus
+  text styling) with a landed-vs-requested report in the result.
+  Port of upstream #536, including its `tests/drawing_style.test.js`
+  regression suite (19 tests, wired into `test:offline`/`test:unit`).
+- Offline test coverage: `hotlist` + `replay` session smoke suites and a
+  registry surface-contract test. Orphaned `new_features.e2e.test.js`
+  gated on `SKIP_NETWORK_TESTS` and wired into new `npm run test:e2e-all`
+  (serial `--test-concurrency=1`; shared chart can't run suites in
+  parallel). Live `test:e2e-all` green on TV Desktop 3.4.1 (107 pass,
+  0 fail).
+
+### Changed
+- Pine `compile()` reuses the `data-qa-id` fast path for icon-only
+  add-to-chart buttons; launch scripts silence child streams
+  (`Start-Process` on Windows). Remainder of upstream #522/#532.
+- `replay.stop()` exits without `stopReplay()` first (which desyncs TV's
+  replay manager), preferring 3.4.1's `leaveReplay()` with a `goToRealtime()`
+  fallback, and polls for live-bar reload before returning. Test setup
+  no longer calls `goToRealtime()` on non-replay charts (that desync
+  wedged every later session). Full upstream #532 replay core, verified
+  live on TV Desktop 3.4.1 (`test:e2e-all` green).
+
+### Deferred (documented, not merged)
+
+- Upstream #526 (new `indicator_get/set_style` tools, 455 additions) is
+  deferred for design review; #530 (MSIX sync-EPERM/sandbox) for a
+  Windows-live verification pass; #523 (trade journal) and divergent
+  iliaal forks stay out of scope.
+
 ## [1.2.0] - 2026-06-06
 
 Upstream ports (screenshot render-wait, MCP config path, OHLCV symbol
@@ -238,7 +293,10 @@ files. No breaking API changes.
 - `IDEAS.md` rolling backlog updated with fork-audit findings,
   pine_set_source workaround status, EPIPE fix delivery confirmation.
 
-[Unreleased]: https://github.com/iliaal/tradingview-mcp/compare/1.1.0...HEAD
+[1.4.0]: https://github.com/iliaal/tradingview-mcp/releases/tag/1.4.0
+[Unreleased]: https://github.com/iliaal/tradingview-mcp/compare/1.4.0...HEAD
+[1.3.0]: https://github.com/iliaal/tradingview-mcp/releases/tag/1.3.0
+[1.2.0]: https://github.com/iliaal/tradingview-mcp/releases/tag/1.2.0
 [1.1.0]: https://github.com/iliaal/tradingview-mcp/releases/tag/1.1.0
 
 ## [1.0.0] - 2026-04-29

@@ -359,12 +359,27 @@ export async function setSymbol({ symbol, discard_unsaved = false, _deps }) {
 
 // TV's resolution() canonicalizes day/week/month as 1D/1W/1M; callers may
 // pass D/W/M. Normalize both sides so a successful change isn't misread as a
-// mismatch (and vice-versa).
+// mismatch (and vice-versa). Intraday spellings collapse to TV canonical
+// too: 4H/12H -> minutes (240/720), 15m/15MIN -> bare minutes (15), seconds
+// words -> "<N>S". Month stays TV-canonical "<N>M" (never NMO). A bare
+// uppercase "<N>M" is month-form; minutes need lowercase "m" ("15m") or an
+// explicit minute word.
 function _normalizeResolution(r) {
-  let s = String(r == null ? '' : r).trim().toUpperCase();
-  if (s === 'D') s = '1D';
-  else if (s === 'W') s = '1W';
-  else if (s === 'M') s = '1M';
+  const raw = String(r == null ? '' : r).trim();
+  const s = raw.toUpperCase();
+  if (s === 'D') return '1D';
+  if (s === 'W') return '1W';
+  if (s === 'M' || s === 'MO') return '1M';
+  let m;
+  if ((m = /^(\d+)\s*S(?:EC(?:OND)?S?)?$/.exec(s))) return `${Number(m[1])}S`;
+  if ((m = /^(\d+)\s*H(?:R|OURS?)?$/.exec(s))) return String(Number(m[1]) * 60);
+  if ((m = /^(\d+)\s*MIN(?:UTE)?S?$/.exec(s))) return String(Number(m[1]));
+  if (/^\d+$/.test(s)) return String(Number(s));
+  if ((m = /^(\d+)\s*D(?:AY|AYS)?$/.exec(s))) return `${Number(m[1])}D`;
+  if ((m = /^(\d+)\s*W(?:EEK|EEKS)?$/.exec(s))) return `${Number(m[1])}W`;
+  if ((m = /^(\d+)\s*MO(?:NTHS?)?$/.exec(s))) return `${Number(m[1])}M`;
+  if ((m = /^(\d+)\s*m$/.exec(raw))) return String(Number(m[1]));
+  if ((m = /^(\d+)\s*M$/.exec(s))) return `${Number(m[1])}M`;
   return s;
 }
 
@@ -454,18 +469,58 @@ export async function manageIndicator({ action, indicator, entity_id, inputs: in
       return await _addUserScript({ id: indicator, _deps });
     }
 
-    const inputArr = inputs ? Object.entries(inputs).map(([k, v]) => ({ id: k, value: v })) : [];
     const before = await evaluate(`${CHART_API}.getAllStudies().map(function(s) { return s.id; })`);
     await evaluate(`
       (function() {
         var chart = ${CHART_API};
-        chart.createStudy(${safeString(indicator)}, false, false, ${JSON.stringify(inputArr)});
+        chart.createStudy(${safeString(indicator)}, false, false, []);
       })()
     `);
     await new Promise(r => setTimeout(r, 1500));
     const after = await evaluate(`${CHART_API}.getAllStudies().map(function(s) { return s.id; })`);
     const newIds = (after || []).filter(id => !(before || []).includes(id));
-    return { success: newIds.length > 0, action: 'add', indicator, entity_id: newIds[0] || null, new_study_count: newIds.length };
+    const entityId = newIds[0] || null;
+
+    // createStudy's 4th arg (input values) is unreliable across TradingView
+    // builds (#249): the study is created with defaults regardless. Apply
+    // overrides afterward via the study's own getInputValues/setInputValues
+    // (the same API indicator_set_inputs uses), then read back to report what
+    // actually took. Unknown keys are surfaced instead of silently dropped.
+    let appliedInputs;
+    if (entityId && inputs && Object.keys(inputs).length) {
+      const result = await evaluate(`
+        (function() {
+          var chart = ${CHART_API};
+          var study = chart.getStudyById(${safeString(entityId)});
+          if (!study || typeof study.getInputValues !== 'function') return { error: 'inputs unsupported for this study' };
+          var current = study.getInputValues();
+          var overrides = ${JSON.stringify(inputs)};
+          var applied = {}, unknown = [];
+          var byId = {};
+          for (var i = 0; i < current.length; i++) byId[current[i].id] = true;
+          for (var k in overrides) {
+            if (byId[k]) { for (var j = 0; j < current.length; j++) { if (current[j].id === k) current[j].value = overrides[k]; } applied[k] = overrides[k]; }
+            else unknown.push(k);
+          }
+          study.setInputValues(current);
+          var after = study.getInputValues();
+          var confirmed = {};
+          for (var m = 0; m < after.length; m++) { if (applied.hasOwnProperty(after[m].id)) confirmed[after[m].id] = after[m].value; }
+          return { confirmed: confirmed, unknown: unknown };
+        })()
+      `);
+      if (result?.error) appliedInputs = { error: result.error };
+      else appliedInputs = { applied: result?.confirmed || {}, ...(result?.unknown?.length && { unknown_inputs: result.unknown }) };
+    }
+
+    return {
+      success: newIds.length > 0,
+      action: 'add',
+      indicator,
+      entity_id: entityId,
+      new_study_count: newIds.length,
+      ...(appliedInputs && { inputs: appliedInputs }),
+    };
   } else if (action === 'remove') {
     if (!entity_id) throw new Error('entity_id required for remove action. Use chart_get_state to find study IDs.');
     await evaluate(`
@@ -739,12 +794,14 @@ export async function scrollToDate({ date, _deps } = {}) {
   if (isNaN(timestamp)) throw new Error(`Could not parse date: ${date}. Use ISO format (2024-01-15) or unix timestamp.`);
 
   const resolution = await evaluate(`${CHART_API}.resolution()`);
+  const normRes = _normalizeResolution(resolution);
   let secsPerBar = 60;
-  const res = String(resolution);
-  if (res === 'D' || res === '1D') secsPerBar = 86400;
-  else if (res === 'W' || res === '1W') secsPerBar = 604800;
-  else if (res === 'M' || res === '1M') secsPerBar = 2592000;
-  else { const mins = parseInt(res, 10); if (!isNaN(mins)) secsPerBar = mins * 60; }
+  let m;
+  if ((m = /^(\d+)S$/.exec(normRes))) secsPerBar = Number(m[1]);
+  else if (/^\d+$/.test(normRes)) secsPerBar = parseInt(normRes, 10) * 60;
+  else if ((m = /^(\d+)D$/.exec(normRes))) secsPerBar = Number(m[1]) * 86400;
+  else if ((m = /^(\d+)W$/.exec(normRes))) secsPerBar = Number(m[1]) * 604800;
+  else if ((m = /^(\d+)M$/.exec(normRes))) secsPerBar = Number(m[1]) * 2592000;
 
   const halfWindow = 25 * secsPerBar;
   const from = timestamp - halfWindow;
@@ -752,7 +809,24 @@ export async function scrollToDate({ date, _deps } = {}) {
 
   await _zoomTimeRange(evaluate, from, to);
   await new Promise(r => setTimeout(r, 500));
-  return { success: true, date, centered_on: timestamp, resolution, window: { from, to } };
+  // Postcondition read-back: TV silently clamps the zoom to the loaded bar
+  // buffer, so a far-past date can snap back toward live. Report whether the
+  // target landed inside the visible range, but keep success:true — a miss
+  // is diagnostic (setVisibleRange clamped/cache_extended precedent), not a
+  // throw.
+  const actual = (await _readVisibleRange(evaluate)) || { from: 0, to: 0 };
+  const probeFailed = !!actual.error || (!actual.from && !actual.to);
+  return {
+    success: true,
+    date,
+    centered_on: timestamp,
+    resolution,
+    window: { from, to },
+    actual,
+    target_in_visible_range: !probeFailed && (actual.from || 0) <= timestamp && timestamp <= (actual.to || 0),
+    actual_read_failed: probeFailed || undefined,
+    actual_read_error: actual.error || undefined,
+  };
 }
 
 export async function symbolInfo({ _deps } = {}) {
