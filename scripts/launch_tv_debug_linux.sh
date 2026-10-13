@@ -4,6 +4,11 @@
 
 PORT="${1:-9222}"
 
+# VS Code / Cursor integrated terminals export ELECTRON_RUN_AS_NODE=1, which makes
+# TradingView (an Electron app) boot headless-as-Node with no debug port. Strip it so
+# this script also works from an editor-integrated shell.
+unset ELECTRON_RUN_AS_NODE ELECTRON_NO_ATTACH_CONSOLE
+
 # Auto-detect TradingView install location
 APP=""
 LOCATIONS=(
@@ -49,7 +54,11 @@ sleep 1
 
 echo "Found TradingView at: $APP"
 echo "Launching with --remote-debugging-port=$PORT ..."
-"$APP" --remote-debugging-port=$PORT &
+# Redirect the child's streams to /dev/null: TradingView outlives this script,
+# and if it inherits our stdout the pipe never reaches EOF, so any caller that
+# captures our output (an agent, a CI step, `| tee`) hangs until TradingView is
+# closed — even though the script itself has already finished.
+"$APP" --remote-debugging-port=$PORT >/dev/null 2>&1 &
 TV_PID=$!
 echo "PID: $TV_PID"
 

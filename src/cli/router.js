@@ -3,6 +3,24 @@
  * Zero dependencies — uses only Node.js built-ins.
  */
 import { parseArgs } from 'node:util';
+import { disconnect } from '../connection.js';
+
+/**
+ * Exit the CLI cleanly. process.exit() abruptly races libuv's async handle
+ * teardown on Windows — undici (Node's fetch, used by `pine check`) and the
+ * CDP WebSocket both trip
+ *   Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c
+ * crashing with a nonzero code even after the command already reported its
+ * result. Set the exit code, close CDP, and let the loop drain naturally; an
+ * unref'd timer force-exits only if some handle genuinely hangs. Mirrors the
+ * success path (execute), which already drains instead of calling exit().
+ */
+async function exit(code) {
+  process.exitCode = code;
+  try { await disconnect(); } catch { /* already closed */ }
+  const t = setTimeout(() => process.exit(code), 3000);
+  t.unref();
+}
 
 /** @type {Map<string, { description: string, options?: object, handler: Function, subcommands?: Map<string, object> }>} */
 const commands = new Map();
@@ -120,7 +138,11 @@ export async function run(argv) {
 
   if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
     printHelp();
-    process.exit(0);
+    // Drain via the event loop like execute(): process.exit() races libuv's
+    // async handle teardown on Windows (see exit() above). Entry awaits
+    // run(), so returning here exits naturally with flushed stdio.
+    process.exitCode = 0;
+    return;
   }
 
   const cmdName = args[0];
@@ -129,7 +151,8 @@ export async function run(argv) {
   if (!cmd) {
     console.error(`Unknown command: ${cmdName}`);
     console.error('Run "tv --help" for a list of commands.');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   // Handle subcommands (e.g., tv pine get)
@@ -138,13 +161,15 @@ export async function run(argv) {
     const subName = args[1];
     if (!subName || subName === '--help' || subName === '-h') {
       printCommandHelp(cmdName, cmd);
-      process.exit(0);
+      process.exitCode = 0;
+      return;
     }
     const sub = cmd.subcommands.get(subName);
     if (!sub) {
       console.error(`Unknown subcommand: ${cmdName} ${subName}`);
       printCommandHelp(cmdName, cmd);
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     handler = sub.handler;
     options = sub.options || {};
@@ -166,11 +191,12 @@ export async function run(argv) {
             console.log(`  ${flag.padEnd(20)}${v.description || ''}`);
           }
         }
-        process.exit(0);
+        process.exitCode = 0;
+        return;
       }
       await execute(handler, values, positionals);
     } catch (err) {
-      handleError(err);
+      await handleError(err);
     }
   } else {
     handler = cmd.handler;
@@ -184,11 +210,12 @@ export async function run(argv) {
       });
       if (values.help) {
         printCommandHelp(cmdName, cmd);
-        process.exit(0);
+        process.exitCode = 0;
+        return;
       }
       await execute(handler, values, positionals);
     } catch (err) {
-      handleError(err);
+      await handleError(err);
     }
   }
 }
@@ -202,17 +229,18 @@ async function execute(handler, values, positionals) {
     // still open at exit time.
     process.exitCode = 0;
   } catch (err) {
-    handleError(err);
+    await handleError(err);
   }
 }
 
-function handleError(err) {
+async function handleError(err) {
   const message = err.message || String(err);
   // Connection failures get exit code 2
   if (/CDP|connection|ECONNREFUSED|not running/i.test(message)) {
     console.error(JSON.stringify({ success: false, error: message }, null, 2));
-    process.exit(2);
+    await exit(2);
+    return;
   }
   console.error(JSON.stringify({ success: false, error: message }, null, 2));
-  process.exit(1);
+  await exit(1);
 }

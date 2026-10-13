@@ -1,26 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { registerHealthTools } from './tools/health.js';
-import { registerChartTools } from './tools/chart.js';
-import { registerPineTools } from './tools/pine.js';
-import { registerDataTools } from './tools/data.js';
-import { registerCaptureTools } from './tools/capture.js';
-import { registerDrawingTools } from './tools/drawing.js';
-import { registerAlertTools } from './tools/alerts.js';
-import { registerBatchTools } from './tools/batch.js';
-import { registerReplayTools } from './tools/replay.js';
-import { registerIndicatorTools } from './tools/indicators.js';
-import { registerWatchlistTools } from './tools/watchlist.js';
-import { registerUiTools } from './tools/ui.js';
-import { registerPaneTools } from './tools/pane.js';
-import { registerTabTools } from './tools/tab.js';
-import { registerHotlistTools } from './tools/hotlist.js';
-import { registerStrategyTools } from './tools/strategy.js';
-import { registerNewsTools } from './tools/news.js';
-import { registerScreenerTools } from './tools/screener.js';
-import { registerPineDeployTools } from './tools/pine-deploy.js';
-import { registerPinePublishTools } from './tools/pine-publish.js';
-import { registerMorningTools } from './tools/morning.js';
+import { registerEnabledTools, TOOL_GROUPS } from './tools/registry.js';
 
 const server = new McpServer(
   {
@@ -29,7 +9,7 @@ const server = new McpServer(
     description: 'AI-assisted TradingView chart analysis and Pine Script development via Chrome DevTools Protocol',
   },
   {
-    instructions: `TradingView MCP — 78 tools for reading and controlling a live TradingView Desktop chart.
+    instructions: `TradingView MCP — live TradingView Desktop chart reading and control.
 
 TOOL SELECTION GUIDE — use this to pick the right tool:
 
@@ -61,7 +41,7 @@ Pine Script development:
 Screenshots: capture_screenshot → regions: "full", "chart", "strategy_tester"
 Replay: replay_start → replay_step → replay_trade → replay_status → replay_stop
 Batch: batch_run → run action across multiple symbols/timeframes
-Drawing: draw_shape → horizontal_line, trend_line, rectangle, text
+Drawing: draw_shape → horizontal_line, trend_line, rectangle, text (+ points[] for N-point shapes, style params, move/set_visible/set_properties, position boxes)
 Alerts: alert_create, alert_list, alert_delete
 Launch: tv_launch → auto-detect and start TradingView with CDP on any platform
 Panes: pane_list, pane_set_layout (s, 2h, 2v, 4, 6, 8), pane_focus, pane_set_symbol
@@ -76,32 +56,20 @@ CONTEXT MANAGEMENT:
   }
 );
 
-// Register all tool groups
-registerHealthTools(server);
-registerChartTools(server);
-registerPineTools(server);
-registerDataTools(server);
-registerCaptureTools(server);
-registerDrawingTools(server);
-registerAlertTools(server);
-registerBatchTools(server);
-registerReplayTools(server);
-registerIndicatorTools(server);
-registerWatchlistTools(server);
-registerUiTools(server);
-registerPaneTools(server);
-registerTabTools(server);
-registerHotlistTools(server);
-registerStrategyTools(server);
-registerNewsTools(server);
-registerScreenerTools(server);
-registerPineDeployTools(server);
-registerPinePublishTools(server);
-registerMorningTools(server);
+// Register all tool groups, honoring TV_DISABLED_TOOLS (comma-separated group
+// names). Default empty → every group registers. See src/tools/registry.js.
+const { disabled: disabledGroups, unknown: unknownGroups } = registerEnabledTools(server);
 
 // Startup notice (stderr so it doesn't interfere with MCP stdio protocol)
 process.stderr.write('⚠  tradingview-mcp  |  Unofficial tool. Not affiliated with TradingView Inc. or Anthropic.\n');
-process.stderr.write('   Ensure your usage complies with TradingView\'s Terms of Use.\n\n');
+process.stderr.write('   Ensure your usage complies with TradingView\'s Terms of Use.\n');
+if (disabledGroups.length) {
+  process.stderr.write(`   Disabled tool groups (TV_DISABLED_TOOLS): ${disabledGroups.join(', ')}\n`);
+}
+if (unknownGroups.length) {
+  process.stderr.write(`   ⚠ Unknown TV_DISABLED_TOOLS names ignored: ${unknownGroups.join(', ')}. Valid: ${Object.keys(TOOL_GROUPS).join(', ')}\n`);
+}
+process.stderr.write('\n');
 
 // Graceful shutdown: when the MCP host (Claude Code, Tauri sidecar, etc.)
 // kills us via SIGTERM, dev Ctrl-C sends SIGINT, or stdin EOF when the
