@@ -1,0 +1,11 @@
+{
+  "name": "tradingview-mcp-minions",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+      ]
+    }
+  },
+  "postCreateCommand": "( curl -fsSL https://github.com/gitricko/.minions/raw/refs/heads/main/install.sh | bash ) >> /tmp/tradingview-mcp-minions.log 2>&1",
+  "postStartCommand":  "( bash $HOME/.minions/boot.sh ) >> /tmp/tradingview-mcp-minions.log 2>&1"
+}

@@ -1,0 +1,66 @@
+name: tradingview-mcp
+services:
+  code-server:
+    # Uses the specific Ubuntu-based MATE tag from LinuxServer.io
+    image: linuxserver/code-server
+    container_name: code-server
+    
+    # Optional: Needed for some modern GUI apps to function properly on older hosts/kernels
+    # security_opt:
+    #   - seccomp:unconfined
+
+    environment:
+      # - PATH=/config/.local/bin:${PATH}
+      # Set your User ID and Group ID to match the host user (run 'id $USER' in your terminal)
+      - PUID=${PUID:-501}
+      - PGID=${PGID:-20}
+      # Set your timezone
+      - TZ=America/New_York
+      # Optional: for reverse proxies
+      - SUBFOLDER=/
+      - PORT=${PORT:-8888}
+      - DEFAULT_WORKSPACE=/config/workspace #optional: set default workspace path
+      - SUDO_PASSWORD=abc
+    
+    volumes:
+      # Change /path/to/data to the directory on your host for persistent config/files
+      - code-server-config:/config
+      - .:/codespace
+      # Uncomment the next line if you want to run Docker inside Webtop
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    ports:
+      # Access the Webtop GUI on port 3000 (http) ~ this is turn off becos you can access via ports 3000 from code-server
+      - 3000:3000
+      # hermes dashboard specific ports (adjust as needed)
+      - 9119:9119
+      # hermes api server (if enabled)
+      - 8642:8642
+      # # 9Router specific ports (adjust as needed)
+      # - 7352:7352
+      # # OmniRoute specific ports (adjust as needed)
+      # - 20128:20128
+      # Set PORT in the environment or .env to change the published host port.
+      - "${PORT:-8888}:8888"
+    # Recommended to prevent modern web browsers from crashing
+    shm_size: "1gb" 
+    
+    # Ensures the container restarts automatically unless you explicitly stop it
+    restart: unless-stopped
+
+    networks:
+      - code-server-net
+
+    devices:
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+
+networks:
+  code-server-net:
+    driver: bridge
+
+volumes:
+  code-server-config:
+    external: false
+    name: code-server-config

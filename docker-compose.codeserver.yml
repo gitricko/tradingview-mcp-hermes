@@ -1,0 +1,4 @@
+services:
+  code-server:
+    network_mode: bridge
+    networks: !reset []
