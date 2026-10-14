@@ -15,7 +15,7 @@ export function registerDrawingTools(server) {
     linestyle: z.coerce.number().optional().describe('0 = solid, 1 = dotted, 2 = dashed'),
     textcolor: z.string().optional().describe('Label text color, e.g. "#FFFFFF"'),
     fontsize: z.coerce.number().optional().describe('Label font size, e.g. 14'),
-    overrides: z.union([z.string(), z.record(z.any())]).optional().describe('Full style override object, or a JSON string of one (e.g. \'{"linecolor": "#ff0000", "linewidth": 2}\'). Wins over the shorthand params above.'),
+    overrides: z.union([z.string(), z.record(z.string(), z.any())]).optional().describe('Full style override object, or a JSON string of one (e.g. \'{"linecolor": "#ff0000", "linewidth": 2}\'). Wins over the shorthand params above.'),
   }, async ({ shape, point, point2, points, overrides, text, color, linecolor, linewidth, linestyle, textcolor, fontsize }) => {
     try { return jsonResult(await core.drawShape({ shape, point, point2, points, overrides, text, color, linecolor, linewidth, linestyle, textcolor, fontsize })); }
     catch (err) { return jsonResult({ success: false, error: err.message }, true); }
